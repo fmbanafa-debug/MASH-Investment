@@ -1,64 +1,46 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { 
-  TrendingUp, ShieldAlert, Activity, DollarSign, Target, Info, Calculator, Briefcase, Search, Filter, ArrowRight, Upload, FileText, Loader2, Clock 
+  Activity, DollarSign, Calculator, FileText, Loader2, Clock, Upload, ArrowRight 
 } from 'lucide-react';
+
+/**
+ * Regulatory Strategy Suite - Core Interface
+ * Optimized for professional consulting and regulatory landscape tracking.
+ */
 
 const getIndication = (target) => {
   const t = (target || '').toUpperCase();
   if (t.includes('FGF21') || t.includes('THR')) return 'MASH w/ Fibrosis';
-  if (t.includes('GLP-1') || t.includes('GIP') || t.includes('GCG')) return 'MASH w/ Obesity';
-  if (t.includes('PPAR')) return 'MASH (Metabolic/Lipid)';
-  return 'MASH (General)';
+  if (t.includes('GLP-1') || t.includes('GIP')) return 'MASH w/ Obesity';
+  return 'MASH (Metabolic)';
 };
 
-const getCategory = (company, phase) => {
-  const bigPharma = ['Novo Nordisk', 'Lilly', 'Boehringer', 'GSK', 'Pfizer', 'AstraZeneca'];
-  const isBigPharma = bigPharma.some(bp => (company || '').toLowerCase().includes(bp.toLowerCase()));
-  if (isBigPharma) return "Big Pharma";
-  if ((phase || '').toLowerCase().includes('approved')) return "Mid Cap / Approved";
-  return "Growth / Speculative";
-};
-
-const rawInitialData = [
-  [1, "Semaglutide", "Recombinant polypeptide", "GLP-1R", "Novo Nordisk A/S", "Approved"],
-  [2, "Resmetirom", "Small molecule drug", "THR-B", "Madrigal Pharmaceuticals", "Approved"],
-  [4, "Pegozafermin", "Growth factors", "FGF21R", "89bio, Inc.", "Phase 3"],
-  [6, "Efruxifermin", "Fc fusion protein", "FGF21R", "Akero Inc.", "Phase 3"],
-  [185, "HRS-4729", "Synthetic peptide", "GCGR x GIPR x GLP-1R", "Jiangsu Hengrui Pharma", "IND Approval"]
+const INITIAL_ASSETS = [
+  { id: 1, name: "Semaglutide", target: "GLP-1R", company: "Novo Nordisk", phase: "Approved" },
+  { id: 2, name: "Resmetirom", target: "THR-B", company: "Madrigal", phase: "Approved" },
+  { id: 4, name: "Pegozafermin", target: "FGF21R", company: "89bio, Inc.", phase: "Phase 3" },
+  { id: 6, name: "Efruxifermin", target: "FGF21R", company: "Akero Inc.", phase: "Phase 3" },
+  { id: 185, name: "HRS-4729", target: "GCGR x GIPR x GLP-1R", company: "Jiangsu Hengrui Pharma", phase: "IND Approval" }
 ];
-
-const INITIAL_ASSETS = rawInitialData.map(row => ({
-  id: row[0], name: row[1], type: row[2], target: row[3], company: row[4], phase: row[5],
-  indication: getIndication(row[3]), category: getCategory(row[4], row[5])
-}));
-
-const COLORS = ['#2563eb', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
 
 export default function App() {
   const [assets, setAssets] = useState(INITIAL_ASSETS);
   const [investment, setInvestment] = useState(100000);
   const [activeTab, setActiveTab] = useState('explorer');
-  const [searchTerm, setSearchTerm] = useState('');
   const [allocation, setAllocation] = useState({ 'THR-B': 40, 'FGF21': 30, 'GLP-1': 20, 'Other': 10 });
-
   const [isGenerating, setIsGenerating] = useState(false);
   const [reportData, setReportData] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
   const [timeLeft, setTimeLeft] = useState(0);
 
   useEffect(() => {
-    let timer;
-    if (timeLeft > 0) timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    return () => clearInterval(timer);
+    if (timeLeft > 0) {
+      const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+      return () => clearInterval(timer);
+    }
   }, [timeLeft]);
-
-  const marketForecast = [
-    { year: '2024', revenue: 2.6 }, { year: '2025', revenue: 3.2 }, { year: '2026', revenue: 4.1 },
-    { year: '2027', revenue: 5.4 }, { year: '2028', revenue: 7.2 }, { year: '2029', revenue: 9.8 },
-  ];
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -72,9 +54,11 @@ export default function App() {
         const id = parseInt(row[noIdx]);
         if (isNaN(id)) return null;
         return {
-          id, name: row[noIdx+1], type: row[noIdx+2], target: row[noIdx+3],
-          company: (row[noIdx+4] || '').replace(/"/g, ''), phase: row[noIdx+5],
-          indication: getIndication(row[noIdx+3]), category: getCategory(row[row[noIdx+4]])
+          id,
+          name: row[noIdx+1],
+          target: row[noIdx+3],
+          company: (row[noIdx+4] || '').replace(/"/g, ''),
+          phase: row[noIdx+5]
         };
       }).filter(Boolean);
       if (parsed.length > 0) setAssets(parsed);
@@ -82,66 +66,69 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const generateStrategicReport = async () => {
-    setIsGenerating(true); setReportData(''); setErrorMsg('');
+  const generateReport = async () => {
+    setIsGenerating(true); setReportData('');
     try {
-      const response = await fetch('/api/generate-report', {
+      const res = await fetch('/api/generate-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ investment, allocation })
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Connection error.");
-      setReportData(data.report);
-      setTimeLeft(60);
-    } catch (err) { setErrorMsg(err.message); }
-    finally { setIsGenerating(false); }
+      const data = await res.json();
+      if (res.ok) {
+        setReportData(data.report);
+        setTimeLeft(60);
+      }
+    } catch (e) {
+      console.error("Connection failed.");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const yieldData = useMemo(() => {
-    const weightedGrowth = (allocation['THR-B'] * 1.12 + allocation['FGF21'] * 1.35 + allocation['GLP-1'] * 1.20 + allocation['Other'] * 1.10) / 100;
-    return [0,1,2,3,4,5].map(y => ({ year: 2024+y, value: Math.round(investment * Math.pow(weightedGrowth, y)) }));
+    const growth = (allocation['THR-B']*1.12 + allocation['FGF21']*1.35 + allocation['GLP-1']*1.20 + allocation['Other']*1.10)/100;
+    return [0,1,2,3,4,5].map(y => ({
+      year: 2024+y,
+      value: Math.round(investment * Math.pow(growth, y))
+    }));
   }, [investment, allocation]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12">
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-10 px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Activity className="text-blue-600" />
-          <span className="font-bold text-lg">Regulatory Strategy Suite</span>
-        </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-12">
+      <nav className="bg-white border-b px-6 h-16 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-2 font-bold text-blue-600"><Activity /> Regulatory Strategy Suite</div>
         <div className="flex bg-slate-100 rounded-lg p-1">
-          {['explorer', 'overview', 'calculator'].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-all ${activeTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{tab}</button>
+          {['explorer', 'calculator'].map(t => (
+            <button key={t} onClick={() => setActiveTab(t)} className={`px-4 py-1.5 rounded-md text-sm capitalize transition-all ${activeTab === t ? 'bg-white shadow-sm' : 'text-slate-500'}`}>{t}</button>
           ))}
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 pt-8">
+      <main className="max-w-6xl mx-auto p-6">
         {activeTab === 'explorer' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Clinical Asset Pipeline ({assets.length})</h2>
-              <label className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl cursor-pointer font-bold text-sm border border-blue-200">
-                <Upload size={16} /> Ingest Landscape CSV
+              <h2 className="text-xl font-bold">Clinical Pipeline Tracking</h2>
+              <label className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg cursor-pointer text-xs font-bold border border-blue-200">
+                <Upload size={14} /> Ingest Data
                 <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
               </label>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr className="text-xs font-bold uppercase text-slate-500">
-                    <th className="px-6 py-4">Asset</th><th className="px-6 py-4">Indication</th><th className="px-6 py-4">Sponsor</th><th className="px-6 py-4">Mechanism</th><th className="px-6 py-4">Phase</th>
+            <div className="bg-white rounded-xl border shadow-sm overflow-hidden overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                    <th className="p-4">Asset</th><th className="p-4">Indication</th><th className="p-4">Sponsor</th><th className="p-4">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {assets.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).map(asset => (
-                    <tr key={asset.id} className="hover:bg-slate-50/50">
-                      <td className="px-6 py-4 font-bold">{asset.name}</td>
-                      <td className="px-6 py-4"><span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">{asset.indication}</span></td>
-                      <td className="px-6 py-4 text-sm">{asset.company}</td>
-                      <td className="px-6 py-4 text-xs font-mono">{asset.target}</td>
-                      <td className="px-6 py-4"><span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase border bg-slate-50">{asset.phase}</span></td>
+                <tbody className="divide-y">
+                  {assets.map(a => (
+                    <tr key={a.id} className="hover:bg-slate-50/50">
+                      <td className="p-4 font-bold">{a.name}</td>
+                      <td className="p-4"><span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">{getIndication(a.target)}</span></td>
+                      <td className="p-4 text-slate-600">{a.company}</td>
+                      <td className="p-4 uppercase text-[10px] font-bold text-slate-400">{a.phase}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -151,46 +138,44 @@ export default function App() {
         )}
 
         {activeTab === 'calculator' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-5 space-y-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Calculator size={20} className="text-blue-600" /> Allocation Configuration</h3>
-                <div className="space-y-6">
-                  <input type="number" value={investment} onChange={e => setInvestment(Number(e.target.value))} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                  {Object.keys(allocation).map(key => (
-                    <div key={key}>
-                      <div className="flex justify-between text-xs font-bold uppercase text-slate-400"><span>{key}</span><span>{allocation[key]}%</span></div>
-                      <input type="range" min="0" max="100" value={allocation[key]} onChange={e => setAllocation({...allocation, [key]: Number(e.target.value)})} className="w-full h-2 bg-slate-100 rounded-lg accent-blue-600" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-slate-900 text-white p-6 rounded-2xl border border-slate-800">
-                <h4 className="font-bold mb-2 flex items-center gap-2"><FileText size={20} className="text-blue-400" /> Strategic Analysis Engine</h4>
-                <button onClick={generateStrategicReport} disabled={isGenerating || timeLeft > 0} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 disabled:bg-slate-800">
-                  {isGenerating ? <Loader2 size={18} className="animate-spin" /> : timeLeft > 0 ? `Cool-down: ${timeLeft}s` : "Execute Intelligence Report"}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-xl border shadow-sm">
+                <h3 className="font-bold mb-4 text-slate-700">Allocation Configuration</h3>
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Total Capital ($)</label>
+                <input type="number" value={investment} onChange={e => setInvestment(Number(e.target.value))} className="w-full p-3 bg-slate-50 border rounded-lg mb-6 font-bold" />
+                
+                {Object.keys(allocation).map(k => (
+                  <div key={k} className="mb-5">
+                    <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase mb-1"><span>{k}</span><span>{allocation[k]}%</span></div>
+                    <input type="range" value={allocation[k]} onChange={e => setAllocation({...allocation, [k]: Number(e.target.value)})} className="w-full h-1 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                  </div>
+                ))}
+
+                <button onClick={generateReport} disabled={isGenerating || timeLeft > 0} className="w-full mt-4 py-3 bg-slate-900 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400">
+                  {isGenerating ? <Loader2 size={18} className="animate-spin" /> : timeLeft > 0 ? `Rate Limit: ${timeLeft}s` : "Execute Briefing"}
                 </button>
               </div>
             </div>
-            <div className="lg:col-span-7 space-y-6">
+
+            <div className="space-y-6">
               {reportData && (
-                <div className="p-6 rounded-2xl border bg-slate-50 border-slate-200 shadow-sm italic text-sm text-slate-700 leading-relaxed border-l-4 border-blue-500">
-                  {reportData.split('\n').map((p, i) => <p key={i} className="mb-4">{p}</p>)}
+                <div className="p-6 bg-blue-50 border border-blue-100 rounded-xl text-sm italic text-slate-700 leading-relaxed border-l-4 border-blue-500 animate-in fade-in slide-in-from-top-4">
+                  <h4 className="font-bold text-blue-800 not-italic mb-3 uppercase text-[10px] tracking-widest text-center">Strategic Market Report</h4>
+                  {reportData.split('\n').filter(p => p.trim() !== '').map((p, i) => <p key={i} className="mb-4">{p}</p>)}
                 </div>
               )}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="text-lg font-bold mb-6">Capital Growth Forecast</h3>
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={yieldData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="year" axisLine={false} tickLine={false} />
-                      <YAxis axisLine={false} tickLine={false} tickFormatter={v => `$${v/1000}k`} />
-                      <Tooltip formatter={v => `$${v.toLocaleString()}`} />
-                      <Line type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={4} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+              <div className="bg-white p-6 rounded-xl border shadow-sm h-64">
+                <h4 className="font-bold text-slate-400 uppercase text-[10px] mb-4">Capital Appreciation Projection</h4>
+                <ResponsiveContainer width="100%" height="80%">
+                  <LineChart data={yieldData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="year" hide />
+                    <YAxis hide />
+                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', fontSize: '12px' }} formatter={v => [`$${v.toLocaleString()}`, 'Value']} />
+                    <Line type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
