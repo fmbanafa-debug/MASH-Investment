@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 const getIndication = (target, drugName) => {
-  const t = (target || '').toUpperCase();
+  const t = (target || '').toUpperCase(); 
   if (t.includes('FGF21') || t.includes('THR')) return 'MASH w/ Fibrosis';
   if (t.includes('GLP-1') || t.includes('GIP') || t.includes('GCG')) return 'MASH w/ Obesity';
   if (t.includes('PPAR')) return 'MASH (Metabolic/Lipid)';
