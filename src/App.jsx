@@ -5,7 +5,7 @@ import {
 import { 
   Activity, DollarSign, Calculator, FileText, Loader2, Clock, Upload, Search, 
   ShieldCheck, Database, Download, ExternalLink, ArrowUpDown, CheckSquare, 
-  Square, Edit2, Trash2, Save, X, FileDown, AlertCircle
+  Square, Edit2, Trash2, Save, X, FileDown, AlertCircle, Percent
 } from 'lucide-react';
 
 /**
@@ -79,13 +79,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('explorer');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'asc' });
+  
+  // Advanced Grid States
   const [allocation, setAllocation] = useState({});
+  const [growthRates, setGrowthRates] = useState({});
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [reportData, setReportData] = useState('');
   const [timeLeft, setTimeLeft] = useState(0);
 
-  // Edit State
   const [editingAsset, setEditingAsset] = useState(null);
   const [editFormData, setEditFormData] = useState({});
 
@@ -95,7 +97,7 @@ export default function App() {
     localStorage.setItem('banafa_selection', JSON.stringify(selectedAssets));
   }, [assets, selectedAssets]);
 
-  // Dynamic Calculator Calculation (N-Indications)
+  // Dynamic Calculator Grid Generator
   useEffect(() => {
     if (selectedAssets.length === 0) {
       setAllocation({});
@@ -116,13 +118,28 @@ export default function App() {
       alloc[key] = Math.round((counts[key] / total) * 100);
     });
     
-    // Balancing to 100%
+    // Balance to 100% cleanly
     const sum = Object.values(alloc).reduce((a, b) => a + b, 0);
     if (sum !== 100 && Object.keys(alloc).length > 0) {
       const first = Object.keys(alloc)[0];
       alloc[first] += (100 - sum);
     }
     setAllocation(alloc);
+
+    // Initialize Default Growth Rates if not already set by user
+    setGrowthRates(prev => {
+      const newRates = { ...prev };
+      Object.keys(counts).forEach(key => {
+        if (newRates[key] === undefined) {
+          if (key.includes('Fibrosis')) newRates[key] = 35; // 35% YoY
+          else if (key.includes('Reduction')) newRates[key] = 12; // 12% YoY
+          else if (key.includes('Obesity')) newRates[key] = 25; // 25% YoY
+          else if (key.includes('Insulin')) newRates[key] = 15; // 15% YoY
+          else newRates[key] = 10; // Default 10% YoY
+        }
+      });
+      return newRates;
+    });
   }, [selectedAssets, assets]);
 
   useEffect(() => {
@@ -177,7 +194,8 @@ export default function App() {
       result = result.filter(a => 
         (a.name?.toLowerCase().includes(low)) || 
         (a.company?.toLowerCase().includes(low)) || 
-        (a.target?.toLowerCase().includes(low))
+        (a.target?.toLowerCase().includes(low)) ||
+        (a.indication?.toLowerCase().includes(low))
       );
     }
     result.sort((a, b) => {
@@ -197,7 +215,7 @@ export default function App() {
   };
 
   const handleBulkDelete = () => {
-    if (window.confirm(`Are you sure you want to delete ${selectedAssets.length} selected items?`)) {
+    if (window.confirm(`Are you sure you want to delete ${selectedAssets.length} selected items from the landscape?`)) {
       setAssets(assets.filter(a => !selectedAssets.includes(a.id)));
       setSelectedAssets([]);
     }
@@ -226,7 +244,7 @@ export default function App() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'Banafa_Asset_Export.csv';
+    link.download = 'Banafa_Asset_Landscape.csv';
     link.click();
   };
 
@@ -242,11 +260,13 @@ Strategic Investment Plan Report
 Total Principal Capital: $${investment.toLocaleString()}
 Projected ROI (Year 5): +${((yieldData[5].value/investment - 1)*100).toFixed(0)}%
 
-2. DYNAMIC INDICATION ALLOCATION (${selectedAssets.length} Assets)
+2. DYNAMIC INDICATION ALLOCATION & TARGET YIELDS
 ------------------------------------------------------
-${Object.entries(allocation).map(([k, v]) => `- ${k.padEnd(35)} ${v}%`).join('\n')}
+${Object.entries(allocation).map(([k, v]) => `- ${k.padEnd(35)} ${v}% Share  |  +${growthRates[k]}% YoY Growth`).join('\n')}
 
-3. GROWTH TRAJECTORY
+*(Calculated from ${selectedAssets.length} distinct assets)*
+
+3. GROWTH TRAJECTORY PROJECTION
 ------------------------------------------------------
 ${yieldData.map(d => `Year ${d.year}: $${d.value.toLocaleString()}`).join('\n')}
 
@@ -273,20 +293,26 @@ Generated on: ${new Date().toLocaleString()}
       });
       const data = await res.json();
       if (res.ok) { setReportData(data.report); setTimeLeft(60); }
-    } catch (e) { console.error("API error."); }
+    } catch (e) { console.error("Network error."); }
     finally { setIsGenerating(false); }
   };
 
+  // Restored Exponential Compounding Calculation
   const yieldData = useMemo(() => {
-    let baseRate = 1.15;
+    let weightedGrowth = 0;
     Object.entries(allocation).forEach(([key, weight]) => {
-      const w = weight / 100;
-      if (key.includes('Fibrosis')) baseRate += (0.25 * w);
-      else if (key.includes('Obesity')) baseRate += (0.15 * w);
-      else baseRate += (0.08 * w);
+      const annualRate = growthRates[key] !== undefined ? growthRates[key] : 10;
+      const multiplier = 1 + (annualRate / 100);
+      weightedGrowth += multiplier * (weight / 100);
     });
-    return [0,1,2,3,4,5].map(y => ({ year: 2024+y, value: Math.round(investment * Math.pow(baseRate, y/2)) }));
-  }, [investment, allocation]);
+    
+    if (weightedGrowth === 0) weightedGrowth = 1.10;
+
+    return [0,1,2,3,4,5].map(y => ({ 
+      year: 2024+y, 
+      value: Math.round(investment * Math.pow(weightedGrowth, y)) 
+    }));
+  }, [investment, allocation, growthRates]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
@@ -300,7 +326,7 @@ Generated on: ${new Date().toLocaleString()}
         </div>
         <div className="hidden md:flex bg-slate-100 rounded-xl p-1 border border-slate-200">
           {['explorer', 'calculator'].map(t => (
-            <button key={t} onClick={() => setActiveTab(t)} className={`px-6 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${activeTab === t ? 'bg-white text-blue-900 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-700'}`}>
+            <button key={t} onClick={() => setActiveTab(t)} className={`px-6 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${activeTab === t ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               {t === 'explorer' ? 'Landscape Inventory' : 'Strategic Calculator'}
             </button>
           ))}
@@ -313,7 +339,7 @@ Generated on: ${new Date().toLocaleString()}
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-800"><Database className="text-blue-600" size={24} /> Asset Landscape</h2>
-                <p className="text-sm text-slate-500 font-medium tracking-tight">Managing {assets.length} items. Active Selection: <span className="text-blue-600 font-bold">{selectedAssets.length}</span></p>
+                <p className="text-sm text-slate-500 font-medium tracking-tight">Tracking {assets.length} items. Active Selection: <span className="text-blue-600 font-bold">{selectedAssets.length}</span></p>
               </div>
               
               <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -323,12 +349,12 @@ Generated on: ${new Date().toLocaleString()}
                 </div>
                 {selectedAssets.length > 0 && (
                   <>
-                    <button onClick={exportSelectedCSV} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-700 text-white rounded-xl text-[10px] font-bold shadow-sm transition-all hover:bg-emerald-800"><FileDown size={14} /> Export Selected</button>
-                    <button onClick={handleBulkDelete} className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white rounded-xl text-[10px] font-bold shadow-sm transition-all hover:bg-red-700"><Trash2 size={14} /> Delete Selected</button>
+                    <button onClick={exportSelectedCSV} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-700 text-white rounded-xl text-[11px] font-bold shadow-sm transition-all hover:bg-emerald-800"><FileDown size={14} /> Export Selected</button>
+                    <button onClick={handleBulkDelete} className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white rounded-xl text-[11px] font-bold shadow-sm transition-all hover:bg-red-700"><Trash2 size={14} /> Bulk Delete</button>
                   </>
                 )}
-                <label className="flex items-center gap-1.5 px-4 py-2 bg-blue-900 text-white rounded-xl cursor-pointer text-[10px] font-bold shadow-md hover:bg-blue-800 transition-all">
-                  <Upload size={14} /> Ingest Data <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                <label className="flex items-center gap-1.5 px-4 py-2 bg-blue-900 text-white rounded-xl cursor-pointer text-[11px] font-bold shadow-md hover:bg-blue-800 transition-all">
+                  <Upload size={14} /> Ingest CSV <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
                 </label>
               </div>
             </div>
@@ -356,10 +382,16 @@ Generated on: ${new Date().toLocaleString()}
                         <tr key={a.id} className="bg-blue-50/40">
                           <td className="p-4"></td>
                           <td className="p-4 font-mono text-[10px] text-slate-400">{a.id}</td>
-                          <td className="p-4"><input type="text" value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full text-xs font-bold border rounded px-1 bg-white" /></td>
-                          <td className="p-4"><input type="text" value={editFormData.target} onChange={e => setEditFormData({...editFormData, target: e.target.value})} className="w-full text-[10px] border rounded px-1 bg-white" /></td>
-                          <td className="p-4"><input type="text" value={editFormData.company} onChange={e => setEditFormData({...editFormData, company: e.target.value})} className="w-full text-sm border rounded px-1 bg-white" /></td>
-                          <td className="p-4"><input type="text" value={editFormData.phase} onChange={e => setEditFormData({...editFormData, phase: e.target.value})} className="w-full text-[10px] uppercase border rounded px-1 bg-white" /></td>
+                          <td className="p-4">
+                            <input type="text" value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full text-xs font-bold border-b border-blue-300 outline-none px-1 bg-white mb-1" />
+                            <input type="text" value={editFormData.type || ''} onChange={e => setEditFormData({...editFormData, type: e.target.value})} className="w-full text-[10px] border-b border-blue-300 outline-none px-1 bg-white" />
+                          </td>
+                          <td className="p-4">
+                            <input type="text" value={editFormData.indication || ''} onChange={e => setEditFormData({...editFormData, indication: e.target.value})} placeholder={getAutoIndication(a.target)} className="w-full text-[10px] font-bold text-indigo-700 border-b border-blue-300 outline-none px-1 bg-white mb-1" />
+                            <input type="text" value={editFormData.target || ''} onChange={e => setEditFormData({...editFormData, target: e.target.value})} className="w-full font-mono text-[9px] border-b border-blue-300 outline-none px-1 bg-white" />
+                          </td>
+                          <td className="p-4"><input type="text" value={editFormData.company || ''} onChange={e => setEditFormData({...editFormData, company: e.target.value})} className="w-full text-sm border-b border-blue-300 outline-none px-1 bg-white" /></td>
+                          <td className="p-4"><input type="text" value={editFormData.phase || ''} onChange={e => setEditFormData({...editFormData, phase: e.target.value})} className="w-full text-[10px] uppercase border-b border-blue-300 outline-none px-1 bg-white" /></td>
                           <td className="p-4 flex gap-2 justify-center"><button onClick={handleSaveEdit} className="text-emerald-600 hover:scale-110 transition-transform"><Save size={16}/></button><button onClick={() => setEditingAsset(null)} className="text-red-500 hover:scale-110 transition-transform"><X size={16}/></button></td>
                         </tr>
                       ) : (
@@ -368,10 +400,13 @@ Generated on: ${new Date().toLocaleString()}
                             {selectedAssets.includes(a.id) ? <CheckSquare size={16} className="text-blue-600 mx-auto" /> : <Square size={16} className="text-slate-300 mx-auto transition-colors group-hover:border-slate-400" />}
                           </td>
                           <td className="p-4 text-slate-400 font-mono text-[10px]">{a.id}</td>
-                          <td className="p-4 font-bold text-slate-800">{a.name}</td>
+                          <td className="p-4 font-bold text-slate-800">
+                            {a.name}
+                            <div className="mt-0.5 text-[10px] text-slate-500 font-normal">{a.type}</div>
+                          </td>
                           <td className="p-4">
                             <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold border border-indigo-100 uppercase tracking-tight">{a.indication || getAutoIndication(a.target)}</span>
-                            <div className="mt-0.5 text-[9px] text-slate-400 font-mono">{a.target}</div>
+                            <div className="mt-1 text-[9px] text-slate-400 font-mono">{a.target}</div>
                           </td>
                           <td className="p-4 font-medium text-blue-800">
                             <a href={`https://www.google.com/search?q=${encodeURIComponent(a.company)}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:underline underline-offset-2">{a.company} <ExternalLink size={10} /></a>
@@ -393,33 +428,69 @@ Generated on: ${new Date().toLocaleString()}
             <div className="space-y-6">
               <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><Calculator size={100} /></div>
-                <h3 className="font-bold text-xl mb-1 text-slate-800 tracking-tight">Strategic Allocation Config</h3>
-                <p className="text-[10px] font-bold text-blue-600 bg-blue-50 inline-block px-3 py-1 rounded-md mb-8 border border-blue-100">Synchronized with {selectedAssets.length} Selections</p>
+                <h3 className="font-bold text-xl mb-1 text-slate-800 tracking-tight">Strategic Matrix Config</h3>
+                <p className="text-[10px] font-bold text-blue-600 bg-blue-50 inline-block px-3 py-1 rounded-md mb-8 border border-blue-100">Calculated from {selectedAssets.length} Selections</p>
                 
                 <div className="space-y-8 relative z-10">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Managed Capital Allocation ($)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Managed Capital Principal ($)</label>
                     <div className="relative">
                       <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                       <input type="number" value={investment} onChange={e => setInvestment(Number(e.target.value))} className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xl focus:ring-4 focus:ring-blue-100 transition-all outline-none" />
                     </div>
                   </div>
                   
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Clinical Indication Portfolio Share</label>
-                    {Object.keys(allocation).length > 0 ? Object.entries(allocation).map(([k, v]) => (
-                      <div key={k}>
-                        <div className="flex justify-between text-[11px] font-bold text-slate-600 uppercase mb-1.5 tracking-tight"><span>{k}</span><span className="text-blue-800">{v}%</span></div>
-                        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200/50">
-                          <div className="bg-blue-700 h-full transition-all duration-1000" style={{ width: `${v}%` }} />
-                        </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4">Risk & Returns Parameters</label>
+                    
+                    {Object.keys(allocation).length > 0 ? (
+                      <div className="border border-slate-200 rounded-xl overflow-hidden">
+                        <table className="w-full text-left text-[11px]">
+                          <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest">
+                            <tr>
+                              <th className="p-3">Indication Pool</th>
+                              <th className="p-3 text-center">Weight (%)</th>
+                              <th className="p-3 text-center">Target YoY (%)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {Object.entries(allocation).map(([k, v]) => (
+                              <tr key={k} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="p-3 font-bold text-slate-700 leading-tight">{k}</td>
+                                <td className="p-3">
+                                  <div className="flex items-center justify-center">
+                                    <input 
+                                      type="number" 
+                                      value={v} 
+                                      onChange={(e) => setAllocation({...allocation, [k]: Number(e.target.value)})} 
+                                      className="w-16 text-center bg-blue-50 border border-blue-100 rounded-md py-1.5 font-bold text-blue-700 outline-none focus:ring-2 focus:ring-blue-500" 
+                                    />
+                                  </div>
+                                </td>
+                                <td className="p-3">
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    <span className="text-emerald-600 font-black">+</span>
+                                    <input 
+                                      type="number" 
+                                      value={growthRates[k] || 0} 
+                                      onChange={(e) => setGrowthRates({...growthRates, [k]: Number(e.target.value)})} 
+                                      className="w-16 text-center bg-emerald-50 border border-emerald-100 rounded-md py-1.5 font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500" 
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    )) : <div className="p-6 bg-slate-50 rounded-2xl text-center text-xs text-slate-400 flex flex-col items-center gap-2 border border-dashed border-slate-200"><AlertCircle size={20} /> Select assets in the Landscape Inventory to enable dynamic weighting</div>}
+                    ) : (
+                      <div className="p-6 bg-slate-50 rounded-2xl text-center text-xs text-slate-400 flex flex-col items-center gap-2 border border-dashed border-slate-200"><AlertCircle size={20} /> Check assets in the landscape inventory to enable dynamic grid</div>
+                    )}
                   </div>
 
                   <div className="flex gap-3 pt-6 border-t border-slate-100">
                     <button onClick={generateReport} disabled={isGenerating || timeLeft > 0 || !selectedAssets.length} className="flex-1 py-4 bg-blue-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all hover:bg-blue-800 disabled:bg-slate-200 disabled:text-slate-400 shadow-lg shadow-blue-900/10">
-                      {isGenerating ? <Loader2 size={18} className="animate-spin" /> : timeLeft > 0 ? `Briefing Wait: ${timeLeft}s` : "Execute Intelligence Brief"}
+                      {isGenerating ? <Loader2 size={18} className="animate-spin" /> : timeLeft > 0 ? `Wait: ${timeLeft}s` : "Execute Briefing"}
                     </button>
                     <button onClick={exportInvestmentPlan} className="py-4 px-6 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 transition-all shadow-sm"><Download size={20} /></button>
                   </div>
