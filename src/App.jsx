@@ -5,7 +5,8 @@ import {
 import { 
   Activity, DollarSign, Calculator, FileText, Loader2, Clock, Upload, Search, 
   ShieldCheck, Database, Download, ExternalLink, ArrowUpDown, CheckSquare, 
-  Square, Edit2, Trash2, Save, X, FileDown, AlertCircle, Percent
+  Square, Edit2, Trash2, Save, X, FileDown, AlertCircle, Percent, Plus, Minus,
+  Phone, Mail, MessageCircle, Link as LinkIcon
 } from 'lucide-react';
 
 /**
@@ -15,7 +16,7 @@ import {
 
 const BRANDING = "Banafa's Pharmacoeconomic Intelligence";
 
-// Generalized Indication Mapping (Auto-generated if not in CSV)
+// Generalized Indication Mapping
 const getAutoIndication = (target) => {
   const t = (target || '').toUpperCase();
   if (t.includes('FGF21')) return 'Advanced Fibrosis';
@@ -80,7 +81,6 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'asc' });
   
-  // Advanced Grid States
   const [allocation, setAllocation] = useState({});
   const [growthRates, setGrowthRates] = useState({});
   
@@ -91,13 +91,11 @@ export default function App() {
   const [editingAsset, setEditingAsset] = useState(null);
   const [editFormData, setEditFormData] = useState({});
 
-  // Persistence
   useEffect(() => {
     localStorage.setItem('banafa_assets', JSON.stringify(assets));
     localStorage.setItem('banafa_selection', JSON.stringify(selectedAssets));
   }, [assets, selectedAssets]);
 
-  // Dynamic Calculator Grid Generator
   useEffect(() => {
     if (selectedAssets.length === 0) {
       setAllocation({});
@@ -118,7 +116,6 @@ export default function App() {
       alloc[key] = Math.round((counts[key] / total) * 100);
     });
     
-    // Balance to 100% cleanly
     const sum = Object.values(alloc).reduce((a, b) => a + b, 0);
     if (sum !== 100 && Object.keys(alloc).length > 0) {
       const first = Object.keys(alloc)[0];
@@ -126,16 +123,15 @@ export default function App() {
     }
     setAllocation(alloc);
 
-    // Initialize Default Growth Rates if not already set by user
     setGrowthRates(prev => {
       const newRates = { ...prev };
       Object.keys(counts).forEach(key => {
         if (newRates[key] === undefined) {
-          if (key.includes('Fibrosis')) newRates[key] = 35; // 35% YoY
-          else if (key.includes('Reduction')) newRates[key] = 12; // 12% YoY
-          else if (key.includes('Obesity')) newRates[key] = 25; // 25% YoY
-          else if (key.includes('Insulin')) newRates[key] = 15; // 15% YoY
-          else newRates[key] = 10; // Default 10% YoY
+          if (key.includes('Fibrosis')) newRates[key] = 35; 
+          else if (key.includes('Reduction')) newRates[key] = 12; 
+          else if (key.includes('Obesity')) newRates[key] = 25; 
+          else if (key.includes('Insulin')) newRates[key] = 15; 
+          else newRates[key] = 10; 
         }
       });
       return newRates;
@@ -264,8 +260,6 @@ Projected ROI (Year 5): +${((yieldData[5].value/investment - 1)*100).toFixed(0)}
 ------------------------------------------------------
 ${Object.entries(allocation).map(([k, v]) => `- ${k.padEnd(35)} ${v}% Share  |  +${growthRates[k]}% YoY Growth`).join('\n')}
 
-*(Calculated from ${selectedAssets.length} distinct assets)*
-
 3. GROWTH TRAJECTORY PROJECTION
 ------------------------------------------------------
 ${yieldData.map(d => `Year ${d.year}: $${d.value.toLocaleString()}`).join('\n')}
@@ -297,7 +291,7 @@ Generated on: ${new Date().toLocaleString()}
     finally { setIsGenerating(false); }
   };
 
-  // Restored Exponential Compounding Calculation
+  // Fixed Year Progression to start at 2026
   const yieldData = useMemo(() => {
     let weightedGrowth = 0;
     Object.entries(allocation).forEach(([key, weight]) => {
@@ -309,13 +303,21 @@ Generated on: ${new Date().toLocaleString()}
     if (weightedGrowth === 0) weightedGrowth = 1.10;
 
     return [0,1,2,3,4,5].map(y => ({ 
-      year: 2024+y, 
+      year: 2026+y, 
       value: Math.round(investment * Math.pow(weightedGrowth, y)) 
     }));
   }, [investment, allocation, growthRates]);
 
+  // Helper functions for custom mobile-friendly inputs
+  const adjustAllocation = (key, amount) => {
+    setAllocation(prev => ({ ...prev, [key]: Math.max(0, (prev[key] || 0) + amount) }));
+  };
+  const adjustGrowthRate = (key, amount) => {
+    setGrowthRates(prev => ({ ...prev, [key]: Math.max(0, (prev[key] || 0) + amount) }));
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-20">
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-30 px-4 md:px-6 py-3 md:h-16 flex flex-col md:flex-row items-center justify-between shadow-sm gap-3 md:gap-0">
         <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
           <div className="p-2 bg-blue-900 rounded-lg text-white shadow-lg"><ShieldCheck size={20} /></div>
@@ -324,15 +326,9 @@ Generated on: ${new Date().toLocaleString()}
             <div className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-0.5">Regulatory & Economic Intelligence</div>
           </div>
         </div>
-        
-        {/* Mobile Fix: Removed 'hidden md:flex', added full width stretching for mobile */}
         <div className="flex w-full md:w-auto bg-slate-100 rounded-xl p-1 border border-slate-200">
           {['explorer', 'calculator'].map(t => (
-            <button 
-              key={t} 
-              onClick={() => setActiveTab(t)} 
-              className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-1.5 rounded-lg text-[11px] md:text-xs font-bold capitalize transition-all ${activeTab === t ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
+            <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-1.5 rounded-lg text-[11px] md:text-xs font-bold capitalize transition-all ${activeTab === t ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               {t === 'explorer' ? 'Landscape Inventory' : 'Strategic Calculator'}
             </button>
           ))}
@@ -368,6 +364,7 @@ Generated on: ${new Date().toLocaleString()}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="max-h-[600px] overflow-y-auto">
                 <table className="w-full text-left text-sm">
+                  {/* ... (Explorer Table Head and Body remain perfectly identical) ... */}
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                     <tr className="text-slate-500 text-[10px] uppercase font-black tracking-widest select-none">
                       <th className="p-4 w-12 text-center cursor-pointer" onClick={() => setSelectedAssets(selectedAssets.length === processedAssets.length ? [] : processedAssets.map(a => a.id))}>
@@ -450,8 +447,9 @@ Generated on: ${new Date().toLocaleString()}
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4">Risk & Returns Parameters</label>
                     
                     {Object.keys(allocation).length > 0 ? (
-                      <div className="border border-slate-200 rounded-xl overflow-hidden">
-                        <table className="w-full text-left text-[11px]">
+                      /* FIXED: Added overflow-x-auto here to allow horizontal scrolling on mobile without breaking layout */
+                      <div className="border border-slate-200 rounded-xl overflow-x-auto">
+                        <table className="w-full text-left text-[11px] min-w-[420px]">
                           <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-black uppercase tracking-widest">
                             <tr>
                               <th className="p-3">Indication Pool</th>
@@ -463,27 +461,37 @@ Generated on: ${new Date().toLocaleString()}
                             {Object.entries(allocation).map(([k, v]) => (
                               <tr key={k} className="hover:bg-slate-50/50 transition-colors">
                                 <td className="p-3 font-bold text-slate-700 leading-tight">{k}</td>
+                                
+                                {/* FIXED: Custom Spinner UI for Weight */}
                                 <td className="p-3">
-                                  <div className="flex items-center justify-center">
+                                  <div className="flex items-center justify-center bg-blue-50 border border-blue-100 rounded-md w-24 mx-auto overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+                                    <button onClick={() => adjustAllocation(k, -1)} className="px-2 py-2 text-blue-600 hover:bg-blue-100 transition-colors"><Minus size={12} strokeWidth={3} /></button>
                                     <input 
                                       type="number" 
                                       value={v} 
                                       onChange={(e) => setAllocation({...allocation, [k]: Number(e.target.value)})} 
-                                      className="w-16 text-center bg-blue-50 border border-blue-100 rounded-md py-1.5 font-bold text-blue-700 outline-none focus:ring-2 focus:ring-blue-500" 
+                                      className="w-full text-center bg-transparent py-1.5 font-bold text-blue-700 outline-none" 
+                                      style={{ WebkitAppearance: 'none', margin: 0, MozAppearance: 'textfield' }}
                                     />
+                                    <button onClick={() => adjustAllocation(k, 1)} className="px-2 py-2 text-blue-600 hover:bg-blue-100 transition-colors"><Plus size={12} strokeWidth={3} /></button>
                                   </div>
                                 </td>
+
+                                {/* FIXED: Custom Spinner UI for Growth */}
                                 <td className="p-3">
-                                  <div className="flex items-center justify-center gap-0.5">
-                                    <span className="text-emerald-600 font-black">+</span>
+                                  <div className="flex items-center justify-center bg-emerald-50 border border-emerald-100 rounded-md w-24 mx-auto overflow-hidden focus-within:ring-2 focus-within:ring-emerald-500">
+                                    <button onClick={() => adjustGrowthRate(k, -1)} className="px-2 py-2 text-emerald-600 hover:bg-emerald-100 transition-colors"><Minus size={12} strokeWidth={3} /></button>
                                     <input 
                                       type="number" 
                                       value={growthRates[k] || 0} 
                                       onChange={(e) => setGrowthRates({...growthRates, [k]: Number(e.target.value)})} 
-                                      className="w-16 text-center bg-emerald-50 border border-emerald-100 rounded-md py-1.5 font-bold text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500" 
+                                      className="w-full text-center bg-transparent py-1.5 font-bold text-emerald-700 outline-none" 
+                                      style={{ WebkitAppearance: 'none', margin: 0, MozAppearance: 'textfield' }}
                                     />
+                                    <button onClick={() => adjustGrowthRate(k, 1)} className="px-2 py-2 text-emerald-600 hover:bg-emerald-100 transition-colors"><Plus size={12} strokeWidth={3} /></button>
                                   </div>
                                 </td>
+
                               </tr>
                             ))}
                           </tbody>
@@ -513,7 +521,7 @@ Generated on: ${new Date().toLocaleString()}
               )}
 
               <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-[0.2em] mb-10 text-center uppercase">{BRANDING} Trajectory</h4>
+                <h4 className="font-black text-slate-400 text-[10px] tracking-[0.2em] mb-10 text-center uppercase">{BRANDING} Trajectory</h4>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={yieldData}>
@@ -534,6 +542,54 @@ Generated on: ${new Date().toLocaleString()}
           </div>
         )}
       </main>
+
+      {/* NEW: Professional Advisor Contact Footer */}
+      <footer className="max-w-4xl mx-auto mt-12 px-4 md:px-6">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 shadow-sm">
+          
+          <div className="relative shrink-0">
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-slate-50 shadow-lg ring-1 ring-slate-200">
+              {/* Ensure your profile image is correctly named and placed in your public folder */}
+              <img src="/IMG_1240.JPG" alt="Fahd - Pharmacoeconomic Advisor" className="w-full h-full object-cover" />
+            </div>
+            <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-2 rounded-full border-2 border-white shadow-sm">
+              <ShieldCheck size={16} />
+            </div>
+          </div>
+
+          <div className="flex-1 text-center md:text-left">
+            <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">Fahd M. B.</h3>
+            <p className="text-sm font-bold text-blue-600 uppercase tracking-widest mt-1 mb-4">Lead Pharmacoeconomic Advisor</p>
+            
+            <div className="flex flex-col md:flex-row gap-4 md:gap-6 text-sm text-slate-600 font-medium">
+              <a href="tel:+966561616567" className="flex items-center justify-center md:justify-start gap-2 hover:text-blue-600 transition-colors">
+                <Phone size={16} /> +966 56 161 6567
+              </a>
+              <a href="mailto:fmbpharmacist@gmail.com" className="flex items-center justify-center md:justify-start gap-2 hover:text-blue-600 transition-colors">
+                <Mail size={16} /> fmbpharmacist@gmail.com
+              </a>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-6">
+              <a href="https://wa.me/966561616567" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-[#25D366] text-white rounded-xl text-xs font-bold hover:bg-[#1ebd5a] transition-colors shadow-sm">
+                <MessageCircle size={16} /> Direct WhatsApp
+              </a>
+              <a href="https://whatsapp.com/channel/0029VbBOyysL7UVTjKWiqo2c" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors">
+                <LinkIcon size={16} /> WhatsApp Channel
+              </a>
+            </div>
+          </div>
+
+          <div className="shrink-0 pt-6 md:pt-0 border-t md:border-t-0 md:border-l border-slate-100 md:pl-8 flex flex-col items-center">
+             {/* Ensure your QR code image is correctly named and placed in your public folder */}
+            <div className="w-28 h-28 bg-white border border-slate-200 p-2 rounded-2xl shadow-sm mb-2">
+              <img src="/WhatsApp Image 2026-05-01 at 8.44.41 PM.jpeg" alt="WhatsApp QR Code" className="w-full h-full object-contain rounded-lg" />
+            </div>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scan to Connect</span>
+          </div>
+
+        </div>
+      </footer>
     </div>
   );
 }
